@@ -1,0 +1,35 @@
+
+name: Sync Google Sheet CSV
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download published CSV
+        env:
+          SHEET_CSV_URL: https://docs.google.com/spreadsheets/d/e/2PACX-1vTZSE8w18mQ75Blx6U6nkJHaNWGe-O9NaSROYsdTrglBn_fa1VqtGwva4GULoymaopAn_J9lpwAoJnu/pub?gid=0&single=true&output=csv
+        run: |
+          mkdir -p data
+          curl --fail --location --silent --show-error "$SHEET_CSV_URL" -o data/sheet.csv
+          python -c "import csv,pathlib; r=list(csv.reader(pathlib.Path('data/sheet.csv').read_text(encoding='utf-8-sig').splitlines())); assert len(r)>1 and r[1][0].strip(), 'CSV 데이터 확인 필요'; print('CSV 확인 완료:',len(r)-1,'행')"
+
+      - name: Commit updated CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/sheet.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Sync daily news from Google Sheets"
+            git push
+          fi
